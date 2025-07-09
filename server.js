@@ -9,17 +9,17 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Load Google Sheets credentials from environment variable
+// Load Google Sheets credentials from env variable
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
-// Set up Google Sheets API auth
+// Set up Sheets API auth
 const auth = new google.auth.GoogleAuth({
   credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
-
 const sheets = google.sheets({ version: 'v4', auth });
-const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // Your Google Sheet ID
+
+const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // Your sheet ID
 
 app.post('/api/appointments', async (req, res) => {
   const { name, phone, email, date, time, service, location, checkOnly } = req.body;
@@ -36,7 +36,7 @@ app.post('/api/appointments', async (req, res) => {
 
     const rows = readResponse.data.values || [];
 
-    // Check for duplicate slot
+    // Check for duplicate time slot
     const duplicate = rows.find(row => row[3] === date && row[4] === time);
 
     if (duplicate) {
@@ -46,7 +46,7 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // If only checking availability
+    // If we're just checking availability
     if (checkOnly) {
       return res.status(200).json({
         available: true,
@@ -54,14 +54,15 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // Check for required fields before booking
+    // Validate required fields for actual booking
     if (!name || !phone || !email || !service || !location) {
       return res.status(400).json({
+        available: false,
         message: 'Missing required fields. Please provide name, phone, email, service, and location.',
       });
     }
 
-    // Append the new appointment to the sheet
+    // Save new appointment
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Appointments!A1',
@@ -71,20 +72,21 @@ app.post('/api/appointments', async (req, res) => {
       },
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       available: true,
       message: 'Your appointment has been booked successfully.',
     });
 
-  } catch (error) {
-    console.error('Error booking appointment:', error);
-    res.status(500).json({
-      message: 'There is a booking at that time can you change the slot.',
+  } catch (err) {
+    console.error('Booking error:', err);
+    return res.status(500).json({
+      available: false,
+      message: 'Something went wrong while booking. Please try again later.',
     });
   }
 });
 
 // Start server
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
