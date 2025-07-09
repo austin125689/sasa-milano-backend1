@@ -4,25 +4,25 @@ const { google } = require('googleapis');
 const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT; // Required by Render
+const port = process.env.PORT;
 
 app.use(cors());
 app.use(bodyParser.json());
 
-// Load credentials from environment variable
+// Load Google credentials from env
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
-// Auth with Google Sheets API
+// Google Sheets setup
 const auth = new google.auth.GoogleAuth({
   credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 const sheets = google.sheets({ version: 'v4', auth });
 
-const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // Your sheet ID
+const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc';
 
 app.post('/api/appointments', async (req, res) => {
-  console.log("✅ POST /api/appointments called");
+  console.log("✅ POST /api/appointments hit");
 
   const { name, phone, email, date, time, service, location, checkOnly } = req.body;
 
@@ -31,14 +31,13 @@ app.post('/api/appointments', async (req, res) => {
   }
 
   try {
-    // Read existing rows to check availability
     const readResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: 'Appointments!A2:G',
     });
 
     const rows = readResponse.data.values || [];
-    const isDuplicate = rows.find(row => row[5] === date && row[6] === time); // Date = F, Time = G
+    const isDuplicate = rows.find(row => row[5] === date && row[6] === time);
 
     if (isDuplicate) {
       return res.status(200).json({
@@ -54,7 +53,6 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // Validate required fields
     if (!name || !phone || !email || !service || !location) {
       return res.status(400).json({
         available: false,
@@ -62,22 +60,8 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // Append new row
     const newRow = [name, phone, email, service, location, date, time];
-    console.log("📝 Writing to sheet:", newRow);
-
     await sheets.spreadsheets.values.append({
-await sheets.spreadsheets.values.append({
-  spreadsheetId,
-  range: 'Appointments!A:G',
-  valueInputOption: 'USER_ENTERED',
-  resource: {
-    values: [newRow],
-  },
-});
-
-console.log("✅ Appointment written to Google Sheets");
-
       spreadsheetId,
       range: 'Appointments!A:G',
       valueInputOption: 'USER_ENTERED',
@@ -85,6 +69,8 @@ console.log("✅ Appointment written to Google Sheets");
         values: [newRow],
       },
     });
+
+    console.log("✅ Appointment written to Google Sheets");
 
     return res.status(200).json({
       available: true,
@@ -100,7 +86,6 @@ console.log("✅ Appointment written to Google Sheets");
   }
 });
 
-// Start the server
 app.listen(port, () => {
   console.log(`✅ Server is running on port ${port}`);
 });
