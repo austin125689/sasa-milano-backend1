@@ -4,24 +4,26 @@ const { google } = require('googleapis');
 const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT; // Required by Render
 
 app.use(cors());
 app.use(bodyParser.json());
 
-// Load Google Sheets credentials from env variable
+// Load credentials from environment variable
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
-// Set up Sheets API auth
+// Auth with Google Sheets API
 const auth = new google.auth.GoogleAuth({
   credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 const sheets = google.sheets({ version: 'v4', auth });
 
-const spreadsheetId = process.env.SPREADSHEET_ID || '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // Google Sheet ID
+const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // Your sheet ID
 
 app.post('/api/appointments', async (req, res) => {
+  console.log("✅ POST /api/appointments called");
+
   const { name, phone, email, date, time, service, location, checkOnly } = req.body;
 
   if (!date || !time) {
@@ -29,24 +31,22 @@ app.post('/api/appointments', async (req, res) => {
   }
 
   try {
+    // Read existing rows to check availability
     const readResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: 'Appointments!A2:G',
     });
 
     const rows = readResponse.data.values || [];
+    const isDuplicate = rows.find(row => row[5] === date && row[6] === time); // Date = F, Time = G
 
-    // Check for duplicate slot
-    const duplicate = rows.find(row => row[5] === date && row[6] === time); // Date at index 5, Time at 6
-
-    if (duplicate) {
+    if (isDuplicate) {
       return res.status(200).json({
         available: false,
         message: 'That time slot is already booked. Please choose a different time.',
       });
     }
 
-    // If just checking availability
     if (checkOnly) {
       return res.status(200).json({
         available: true,
@@ -54,7 +54,7 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // Validate required fields for booking
+    // Validate required fields
     if (!name || !phone || !email || !service || !location) {
       return res.status(400).json({
         available: false,
@@ -62,13 +62,16 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // Append new appointment
+    // Append new row
+    const newRow = [name, phone, email, service, location, date, time];
+    console.log("📝 Writing to sheet:", newRow);
+
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Appointments!A:G',
       valueInputOption: 'USER_ENTERED',
       resource: {
-        values: [[name, phone, email, service, location, date, time]],
+        values: [newRow],
       },
     });
 
@@ -78,7 +81,7 @@ app.post('/api/appointments', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Booking error:', err);
+    console.error('❌ Booking error:', err);
     return res.status(500).json({
       available: false,
       message: 'Something went wrong while booking. Please try again later.',
@@ -86,6 +89,7 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
+// Start the server
 app.listen(port, () => {
-  console.log(`✅ Server running on port ${port}`);
+  console.log(`✅ Server is running on port ${port}`);
 });
