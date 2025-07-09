@@ -67,6 +67,17 @@ app.post('/api/appointments', async (req, res) => {
     console.log("📝 Writing to sheet:", newRow);
 
     await sheets.spreadsheets.values.append({
+await sheets.spreadsheets.values.append({
+  spreadsheetId,
+  range: 'Appointments!A:G',
+  valueInputOption: 'USER_ENTERED',
+  resource: {
+    values: [newRow],
+  },
+});
+
+console.log("✅ Appointment written to Google Sheets");
+
       spreadsheetId,
       range: 'Appointments!A:G',
       valueInputOption: 'USER_ENTERED',
