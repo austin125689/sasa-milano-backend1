@@ -19,7 +19,7 @@ const auth = new google.auth.GoogleAuth({
 });
 const sheets = google.sheets({ version: 'v4', auth });
 
-const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // Your sheet ID
+const spreadsheetId = process.env.SPREADSHEET_ID || '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // Google Sheet ID
 
 app.post('/api/appointments', async (req, res) => {
   const { name, phone, email, date, time, service, location, checkOnly } = req.body;
@@ -36,8 +36,8 @@ app.post('/api/appointments', async (req, res) => {
 
     const rows = readResponse.data.values || [];
 
-    // Check for duplicate time slot
-    const duplicate = rows.find(row => row[3] === date && row[4] === time);
+    // Check for duplicate slot
+    const duplicate = rows.find(row => row[5] === date && row[6] === time); // Date at index 5, Time at 6
 
     if (duplicate) {
       return res.status(200).json({
@@ -46,7 +46,7 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // If we're just checking availability
+    // If just checking availability
     if (checkOnly) {
       return res.status(200).json({
         available: true,
@@ -54,7 +54,7 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // Validate required fields for actual booking
+    // Validate required fields for booking
     if (!name || !phone || !email || !service || !location) {
       return res.status(400).json({
         available: false,
@@ -62,13 +62,13 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // Save new appointment
+    // Append new appointment
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Appointments!A1',
+      range: 'Appointments!A:G',
       valueInputOption: 'USER_ENTERED',
       resource: {
-        values: [[name, phone, email, date, time, service, location]],
+        values: [[name, phone, email, service, location, date, time]],
       },
     });
 
@@ -86,7 +86,6 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
-// Start server
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`✅ Server running on port ${port}`);
 });
