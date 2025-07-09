@@ -79,7 +79,7 @@ app.post('/api/appointments', async (req, res) => {
   } catch (error) {
     console.error('Error booking appointment:', error);
     res.status(500).json({
-      message: 'Something went wrong while booking. Please try again later.',
+      message: 'There is a booking at that time can you change the slot.',
     });
   }
 });
