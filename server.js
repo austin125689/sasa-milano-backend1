@@ -9,15 +9,17 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
+// Load Google Sheets credentials from environment variable
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
+// Set up Google Sheets API auth
 const auth = new google.auth.GoogleAuth({
   credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
 const sheets = google.sheets({ version: 'v4', auth });
-const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // your sheet ID
+const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc'; // Your Google Sheet ID
 
 app.post('/api/appointments', async (req, res) => {
   const { name, phone, email, date, time, service, location, checkOnly } = req.body;
@@ -33,20 +35,18 @@ app.post('/api/appointments', async (req, res) => {
     });
 
     const rows = readResponse.data.values || [];
+
+    // Check for duplicate slot
     const duplicate = rows.find(row => row[3] === date && row[4] === time);
 
     if (duplicate) {
       return res.status(200).json({
         available: false,
-        message: 'That time is already booked. Please choose a different time.',
+        message: 'That time slot is already booked. Please choose a different time.',
       });
     }
-if (!name || !phone || !email || !date || !time || !service || !location) {
-  return res.status(400).json({
-    message: 'Missing required fields. Please provide name, phone, email, date, time, service, and location.',
-  });
-}
 
+    // If only checking availability
     if (checkOnly) {
       return res.status(200).json({
         available: true,
@@ -54,10 +54,14 @@ if (!name || !phone || !email || !date || !time || !service || !location) {
       });
     }
 
+    // Check for required fields before booking
     if (!name || !phone || !email || !service || !location) {
-      return res.status(400).json({ message: 'Missing required fields to book.' });
+      return res.status(400).json({
+        message: 'Missing required fields. Please provide name, phone, email, service, and location.',
+      });
     }
 
+    // Append the new appointment to the sheet
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Appointments!A1',
@@ -67,15 +71,20 @@ if (!name || !phone || !email || !date || !time || !service || !location) {
       },
     });
 
-    res.status(200).json({ available: true, message: 'Your appointment has been booked successfully.' });
+    res.status(200).json({
+      available: true,
+      message: 'Your appointment has been booked successfully.',
+    });
 
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ message: 'Something went wrong while checking the appointment.' });
+    console.error('Error booking appointment:', error);
+    res.status(500).json({
+      message: 'Something went wrong while booking. Please try again later.',
+    });
   }
-res.status(500).json({ message: 'Something went wrong while booking. Please try again later.' });
 });
 
+// Start server
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`Server running on port ${port}`);
 });
