@@ -41,6 +41,11 @@ app.post('/api/appointments', async (req, res) => {
         message: 'That time is already booked. Please choose a different time.',
       });
     }
+if (!name || !phone || !email || !date || !time || !service || !location) {
+  return res.status(400).json({
+    message: 'Missing required fields. Please provide name, phone, email, date, time, service, and location.',
+  });
+}
 
     if (checkOnly) {
       return res.status(200).json({
@@ -68,6 +73,7 @@ app.post('/api/appointments', async (req, res) => {
     console.error('Error:', error);
     res.status(500).json({ message: 'Something went wrong while checking the appointment.' });
   }
+res.status(500).json({ message: 'Something went wrong while booking. Please try again later.' });
 });
 
 app.listen(port, () => {
