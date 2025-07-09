@@ -1,91 +1,54 @@
 const express = require('express');
-const bodyParser = require('body-parser');
 const { google } = require('googleapis');
 const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT;
-
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-// Load Google credentials from env
-const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-
-// Google Sheets setup
 const auth = new google.auth.GoogleAuth({
-  credentials,
+  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
-const sheets = google.sheets({ version: 'v4', auth });
 
-const spreadsheetId = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc';
+const SPREADSHEET_ID = '1Ft96E6uFz-hn6Z433hFGa4oLnp0BoMAfdgzc88lYEDc';
 
 app.post('/api/appointments', async (req, res) => {
-  console.log("✅ POST /api/appointments hit");
-
-  const { name, phone, email, date, time, service, location, checkOnly } = req.body;
-
-  if (!date || !time) {
-    return res.status(400).json({ message: 'Date and time are required.' });
-  }
-
   try {
-    const readResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: 'Appointments!A2:G',
-    });
+    const { appointment_type, date, time, location_type, name, phone, email } = req.body;
 
-    const rows = readResponse.data.values || [];
-    const isDuplicate = rows.find(row => row[5] === date && row[6] === time);
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: 'v4', auth: client });
 
-    if (isDuplicate) {
-      return res.status(200).json({
-        available: false,
-        message: 'That time slot is already booked. Please choose a different time.',
-      });
-    }
-
-    if (checkOnly) {
-      return res.status(200).json({
-        available: true,
-        message: 'The slot is available. Should I go ahead and book it for you?',
-      });
-    }
-
-    if (!name || !phone || !email || !service || !location) {
-      return res.status(400).json({
-        available: false,
-        message: 'Missing required fields. Please provide name, phone, email, service, and location.',
-      });
-    }
-
-    const newRow = [name, phone, email, service, location, date, time];
     await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: 'Appointments!A:G',
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [newRow],
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Appointments!A1',
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: {
+        values: [[
+          appointment_type,
+          date,
+          time,
+          location_type,
+          name,
+          phone,
+          email
+        ]],
       },
     });
 
-    console.log("✅ Appointment written to Google Sheets");
-
-    return res.status(200).json({
-      available: true,
-      message: 'Your appointment has been booked successfully.',
-    });
-
+    res.status(200).json({ message: '✅ Appointment saved to Google Sheet' });
   } catch (err) {
-    console.error('❌ Booking error:', err);
-    return res.status(500).json({
-      available: false,
-      message: 'Something went wrong while booking. Please try again later.',
-    });
+    console.error('❌ Error saving to Google Sheet:', err);
+    res.status(500).json({ error: 'Failed to save appointment' });
   }
 });
 
-app.listen(port, () => {
-  console.log(`✅ Server is running on port ${port}`);
+app.get('/', (req, res) => {
+  res.send('🟢 SASA Milano backend is connected to Google Sheets!');
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
